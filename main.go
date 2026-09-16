@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -41,6 +42,14 @@ type VersionResponse struct {
 
 var startTime = time.Now()
 var requestCount int64
+
+func requestID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := fmt.Sprintf("%016x", rand.Int63())
+		w.Header().Set("X-Request-ID", id)
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), "request_id", id)))
+	})
+}
 
 func main() {
 	port := os.Getenv("PORT")
@@ -103,7 +112,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    ":" + port,
-		Handler: mux,
+		Handler: requestID(mux),
 	}
 
 	quit := make(chan os.Signal, 1)
