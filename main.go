@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"sync/atomic"
 	"time"
 )
 
@@ -16,6 +17,11 @@ type HealthResponse struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
+type ReadinessResponse struct {
+	Ready    bool   `json:"ready"`
+	Requests int64  `json:"requests_served"`
+}
+
 type MetricsResponse struct {
 	Goroutines int    `json:"goroutines"`
 	GOOS       string `json:"goos"`
@@ -24,6 +30,7 @@ type MetricsResponse struct {
 }
 
 var startTime = time.Now()
+var requestCount int64
 
 func main() {
 	port := os.Getenv("PORT")
@@ -36,6 +43,7 @@ func main() {
 	}
 
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&requestCount, 1)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(HealthResponse{
 			Status:    "ok",
@@ -45,7 +53,17 @@ func main() {
 		})
 	})
 
+	http.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&requestCount, 1)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(ReadinessResponse{
+			Ready:    true,
+			Requests: atomic.LoadInt64(&requestCount),
+		})
+	})
+
 	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&requestCount, 1)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(MetricsResponse{
 			Goroutines: runtime.NumGoroutine(),
@@ -56,6 +74,7 @@ func main() {
 	})
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&requestCount, 1)
 		fmt.Fprintf(w, "Harness Worker Agent Service v%s\n", version)
 	})
 
