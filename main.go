@@ -18,8 +18,8 @@ type HealthResponse struct {
 }
 
 type ReadinessResponse struct {
-	Ready    bool   `json:"ready"`
-	Requests int64  `json:"requests_served"`
+	Ready    bool  `json:"ready"`
+	Requests int64 `json:"requests_served"`
 }
 
 type MetricsResponse struct {
@@ -27,6 +27,13 @@ type MetricsResponse struct {
 	GOOS       string `json:"goos"`
 	GOARCH     string `json:"goarch"`
 	Uptime     string `json:"uptime"`
+}
+
+type VersionResponse struct {
+	Version   string `json:"version"`
+	GoVersion string `json:"go_version"`
+	OS        string `json:"os"`
+	Arch      string `json:"arch"`
 }
 
 var startTime = time.Now()
@@ -59,6 +66,17 @@ func main() {
 		json.NewEncoder(w).Encode(ReadinessResponse{
 			Ready:    true,
 			Requests: atomic.LoadInt64(&requestCount),
+		})
+	})
+
+	http.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&requestCount, 1)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(VersionResponse{
+			Version:   version,
+			GoVersion: runtime.Version(),
+			OS:        runtime.GOOS,
+			Arch:      runtime.GOARCH,
 		})
 	})
 
