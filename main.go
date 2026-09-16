@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"runtime"
 	"time"
 )
 
@@ -14,6 +15,15 @@ type HealthResponse struct {
 	Version   string    `json:"version"`
 	Timestamp time.Time `json:"timestamp"`
 }
+
+type MetricsResponse struct {
+	Goroutines int    `json:"goroutines"`
+	GOOS       string `json:"goos"`
+	GOARCH     string `json:"goarch"`
+	Uptime     string `json:"uptime"`
+}
+
+var startTime = time.Now()
 
 func main() {
 	port := os.Getenv("PORT")
@@ -35,17 +45,22 @@ func main() {
 		})
 	})
 
+	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(MetricsResponse{
+			Goroutines: runtime.NumGoroutine(),
+			GOOS:       runtime.GOOS,
+			GOARCH:     runtime.GOARCH,
+			Uptime:     time.Since(startTime).String(),
+		})
+	})
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Harness Worker Agent Service v%s\n", version)
 	})
 
 	fmt.Printf("[worker] Listening on :%s  version=%s\n", port, version)
-           // REQUIRES IMPORT: "log"
-if err := http.ListenAndServeTLS(":"+port, "server.crt", "server.key", nil); err != nil {
-    log.Fatalf("Failed to start HTTPS server: %v", err)
-}
-		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		os.Exit(1)
 	}
 }
-// test once again
