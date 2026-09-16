@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"runtime"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -49,7 +52,9 @@ func main() {
 		version = "dev"
 	}
 
-	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&requestCount, 1)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(HealthResponse{
@@ -60,7 +65,7 @@ func main() {
 		})
 	})
 
-	http.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&requestCount, 1)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(ReadinessResponse{
@@ -69,7 +74,7 @@ func main() {
 		})
 	})
 
-	http.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&requestCount, 1)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(VersionResponse{
@@ -80,7 +85,7 @@ func main() {
 		})
 	})
 
-	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&requestCount, 1)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(MetricsResponse{
@@ -91,13 +96,32 @@ func main() {
 		})
 	})
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&requestCount, 1)
 		fmt.Fprintf(w, "Harness Worker Agent Service v%s\n", version)
 	})
 
-	fmt.Printf("[worker] Listening on :%s  version=%s\n", port, version)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: mux,
+	}
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		fmt.Printf("[worker] Listening on :%s  version=%s\n", port, version)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			os.Exit(1)
+		}
+	}()
+
+	<-quit
+	fmt.Println("[worker] Shutting down gracefully...")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
 		os.Exit(1)
 	}
+	fmt.Println("[worker] Stopped.")
 }
