@@ -1,26 +1,21 @@
 # harness-worker-demo
 
-Dummy **Harness Worker Agent** microservice — a lightweight Go HTTP service
-built and published to Harness Artifact Registry via a Harness CI pipeline.
+A demo Go microservice showcasing Harness Worker Agents in a CI pipeline.
 
 ## Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /` | Returns service name and version |
-| `GET /healthz` | Returns JSON health status |
+| `GET /` | Service banner |
+| `GET /healthz` | Health check (JSON) |
+| `GET /metrics` | Runtime metrics (goroutines, GOOS, GOARCH, uptime) |
 
-## Building locally
+## Pipeline
 
-```bash
-go build -o worker .
-SERVICE_VERSION=local ./worker
-curl http://localhost:8080/healthz
-```
+Built, scanned, and published via **Harness Worker Agent - Build and Publish**:
 
-## Docker
-
-```bash
-docker build -t harness-worker-demo .
-docker run -p 8080:8080 -e SERVICE_VERSION=local harness-worker-demo
-```
+1. **Build & Vet** — `go vet` + compile
+2. **Smoke Test** — starts binary, hits `/healthz`
+3. **Code Review** — AI-powered PR review (PR triggers only)
+4. **Security Scan** — Semgrep, OWASP, OSV Scanner in parallel
+5. **Publish** — Docker image → Harness Artifact Registry (`worker`)
