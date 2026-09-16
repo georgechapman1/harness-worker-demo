@@ -40,7 +40,10 @@ func main() {
 	})
 
 	fmt.Printf("[worker] Listening on :%s  version=%s\n", port, version)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
+           // REQUIRES IMPORT: "log"
+if err := http.ListenAndServeTLS(":"+port, "server.crt", "server.key", nil); err != nil {
+    log.Fatalf("Failed to start HTTPS server: %v", err)
+}
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
 		os.Exit(1)
 	}
